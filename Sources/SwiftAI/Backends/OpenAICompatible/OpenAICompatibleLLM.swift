@@ -3,7 +3,7 @@ import OpenAI
 
 /// LLM backend for any OpenAI-compatible Chat Completions API.
 ///
-/// Works with Gemini, DeepSeek, Grok, Groq, Together AI, Ollama, and other providers
+/// Works with Gemini, DeepSeek, Grok, Groq, Ollama, and other providers
 /// that implement the OpenAI Chat Completions API specification.
 ///
 /// ```swift
@@ -51,10 +51,6 @@ public struct OpenAICompatibleLLM: LLM {
     /// Groq API for fast inference.
     /// API key defaults to `GROQ_API_KEY` environment variable.
     case groq(apiKey: String? = nil)
-
-    /// Together AI API.
-    /// API key defaults to `TOGETHER_API_KEY` environment variable.
-    case together(apiKey: String? = nil)
 
     /// Custom OpenAI-compatible endpoint.
     /// Use for Ollama, vLLM, LM Studio, or any other compatible server.
@@ -265,8 +261,6 @@ extension OpenAICompatibleLLM.Provider {
       return "Grok"
     case .groq:
       return "Groq"
-    case .together:
-      return "Together"
     case .custom:
       return "Custom"
     }
@@ -308,8 +302,18 @@ extension OpenAICompatibleLLM.Provider {
         minimumTokens: 1
       )
 
-    case .groq, .together, .custom:
-      // Untested providers use conservative defaults
+    case .groq:
+      return ProviderCapabilities(
+        supportsToolsWithStructuredOutput: false,
+        supportsPreseededToolHistory: false,
+        supportsMultiTurnToolLoops: false,
+        supportsMultiToolSelection: true,
+        supportsGuideConstraints: false,
+        minimumTokens: 1
+      )
+
+    case .custom:
+      // Custom providers use conservative defaults
       return .conservative
     }
   }
@@ -324,8 +328,6 @@ extension OpenAICompatibleLLM.Provider {
       return URL(string: "https://api.x.ai/v1")!
     case .groq:
       return URL(string: "https://api.groq.com/openai/v1")!
-    case .together:
-      return URL(string: "https://api.together.xyz/v1")!
     case .custom(let url, _, _):
       return url
     }
@@ -342,8 +344,6 @@ extension OpenAICompatibleLLM.Provider {
       return key ?? ProcessInfo.processInfo.environment["XAI_API_KEY"]
     case .groq(let key):
       return key ?? ProcessInfo.processInfo.environment["GROQ_API_KEY"]
-    case .together(let key):
-      return key ?? ProcessInfo.processInfo.environment["TOGETHER_API_KEY"]
     case .custom(_, let key, _):
       return key
     }
@@ -371,10 +371,10 @@ extension OpenAICompatibleLLM.Provider {
   }
 
   /// Whether the provider supports JSON schema response format.
-  /// DeepSeek only supports json_object mode, not json_schema.
+  /// DeepSeek and Groq only support json_object mode, not json_schema.
   var supportsJsonSchema: Bool {
     switch self {
-    case .deepseek:
+    case .deepseek, .groq:
       return false
     default:
       return true

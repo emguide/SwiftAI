@@ -136,22 +136,6 @@ struct ProviderCapabilitiesTests {
     #expect(caps.minimumTokens == 16)
   }
 
-  // MARK: - Together Capabilities (untested, conservative defaults)
-
-  @Test("Together has conservative default capabilities")
-  func testTogether_HasConservativeDefaults() {
-    let provider = OpenAICompatibleLLM.Provider.together()
-    let caps = provider.capabilities
-
-    // Untested providers should have conservative defaults
-    #expect(caps.supportsToolsWithStructuredOutput == false)
-    #expect(caps.supportsPreseededToolHistory == false)
-    #expect(caps.supportsMultiTurnToolLoops == false)
-    #expect(caps.supportsMultiToolSelection == false)
-    #expect(caps.supportsGuideConstraints == false)
-    #expect(caps.minimumTokens == 16)
-  }
-
   // MARK: - Custom Provider Capabilities
 
   @Test("Custom provider has conservative default capabilities")
@@ -179,7 +163,6 @@ struct ProviderCapabilitiesTests {
     #expect(OpenAICompatibleLLM.Provider.deepseek().name == "DeepSeek")
     #expect(OpenAICompatibleLLM.Provider.grok().name == "Grok")
     #expect(OpenAICompatibleLLM.Provider.groq().name == "Groq")
-    #expect(OpenAICompatibleLLM.Provider.together().name == "Together")
     #expect(
       OpenAICompatibleLLM.Provider.custom(
         baseURL: URL(string: "http://localhost")!,

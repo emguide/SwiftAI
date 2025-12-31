@@ -2,6 +2,24 @@
 
 This backend supports any provider that implements the OpenAI Chat Completions API specification.
 
+## Provider Compatibility Summary
+
+| Feature | Gemini | DeepSeek | Grok | Groq |
+|---------|:------:|:--------:|:----:|:----:|
+| Basic text generation | ✅ | ✅ | ✅ | ✅ |
+| Streaming | ✅ | ✅ | ✅ | ⚠️ |
+| Structured output | ✅ | ✅ | ✅ | ✅ |
+| Tool calling | ✅ | ✅ | ✅ | ✅ |
+| Multi-tool selection | ✅ | ⚠️ | ✅ | ✅ |
+| Multi-turn tool loops | ⚠️ | ✅ | ✅ | ⚠️ |
+| Tools + Structured output | ❌ | ✅ | ❌ | ❌ |
+| Pre-seeded tool history | ❌ | ✅ | ❌ | ❌ |
+| @Guide constraints | ✅ | ⚠️ | ⚠️ | ⚠️ |
+
+**Legend:** ✅ Works | ⚠️ Unreliable | ❌ Avoid
+
+> **Note:** For tools + structured output on Gemini/Grok/Groq, use the [two-step workaround](#workaround-tools--structured-output).
+
 ## Checking Provider Capabilities
 
 Use `ProviderCapabilities` to check what features a provider reliably supports before making requests:
@@ -27,7 +45,7 @@ if provider.capabilities.minimumTokens > requestedTokens {
 // - minimumTokens
 ```
 
-Untested providers (Groq, Together, Custom) use `ProviderCapabilities.conservative` defaults.
+Custom providers use `ProviderCapabilities.conservative` defaults.
 
 ## Provider-Aware Errors
 
@@ -65,7 +83,6 @@ do {
 | DeepSeek | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
 | Grok | `XAI_API_KEY` | `https://api.x.ai/v1` |
 | Groq | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` |
-| Together | `TOGETHER_API_KEY` | `https://api.together.xyz/v1` |
 | Custom | (explicit) | (explicit) |
 
 ## Provider Limitations
@@ -137,10 +154,39 @@ Grok's OpenAI-compatible endpoint has good compatibility with some limitations:
 - Avoid pre-seeding conversation history with tool call/output messages
 - Don't rely on strict @Guide constraints for array counts
 
+### Groq (Tested)
+
+Groq's OpenAI-compatible endpoint provides fast inference but has significant limitations:
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Basic text generation | ✅ Works | |
+| Streaming | ⚠️ Unreliable | May emit duplicate partials |
+| Structured output | ✅ Works | Uses `json_object` mode (not `json_schema`) |
+| Tool calling | ✅ Works | Basic single-tool and multi-tool selection |
+| Tools + Structured output | ❌ Avoid | Returns 400 error |
+| Multi-turn tool loops | ⚠️ Unreliable | Model may not use tool outputs in subsequent turns |
+| Streaming structured output | ⚠️ Unreliable | May produce malformed JSON during streaming |
+| Complex pre-seeded history | ❌ Avoid | Returns 400 error for histories with tool calls |
+| @Guide constraints | ⚠️ Unreliable | May not respect array count constraints |
+
+**Technical Notes:**
+- Groq only supports `json_object` response format, not `json_schema`
+- The backend automatically injects a system message with schema when using structured output
+- Tested with `llama-3.1-8b-instant` model; larger models may have better reliability
+- Free tier has strict rate limits (30 RPM for smaller models)
+
+**Recommendations for Groq:**
+- Do not combine `tools` with structured output (`returning:` parameter)
+- Avoid pre-seeding conversation history with tool call/output messages
+- Use non-streaming structured output for reliability
+- Don't rely on strict @Guide constraints for array counts
+- Consider larger models (70b) for better tool calling reliability
+
 
 ## Workaround: Tools + Structured Output
 
-Combining tools with structured output fails on Gemini (infinite loop) and Grok (400 error). Use this two-step pattern that works on **all providers**:
+Combining tools with structured output fails on Gemini (infinite loop), Grok (400 error), and Groq (400 error). Use this two-step pattern that works on **all providers**:
 
 ```swift
 @Generable
@@ -183,10 +229,10 @@ if let report = try? JSONDecoder().decode(WeatherReport.self, from: toolResult.c
 
 ## API Patterns to Avoid
 
-### 1. Tools + Structured Output (Gemini/Grok)
+### 1. Tools + Structured Output (Gemini/Grok/Groq)
 
 ```swift
-// ❌ AVOID with Gemini/Grok - causes infinite loop or 400 error
+// ❌ AVOID with Gemini/Grok/Groq - causes infinite loop or 400 error
 let reply = try await llm.reply(
     to: "Calculate 10 * 5",
     returning: CalculationResult.self,  // Structured output
